@@ -16,9 +16,12 @@ import {
   RefreshCw,
   LayoutDashboard,
   Megaphone,
-  Coins
+  Coins,
+  Settings,
+  X,
+  Key
 } from 'lucide-react';
-import { generateBlogIdentity, generateBlogPost, regenerateImagePrompts } from './services/geminiService';
+import { generateBlogIdentity, generateBlogPost, regenerateImagePrompts, setApiKey } from './services/geminiService';
 import { BlogIdentity, BlogPost } from './types';
 import { ROADMAP } from './constants';
 
@@ -33,6 +36,9 @@ export default function App() {
   const [isLoadingImagePrompts, setIsLoadingImagePrompts] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'roadmap' | 'identity' | 'generator'>('roadmap');
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [isApiKeySaved, setIsApiKeySaved] = useState(false);
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -45,6 +51,13 @@ export default function App() {
 
       const savedCompleted = localStorage.getItem('completed_days');
       if (savedCompleted) setCompletedDays(JSON.parse(savedCompleted));
+
+      const savedKey = localStorage.getItem('gemini_api_key');
+      if (savedKey) {
+        setApiKeyInput(savedKey);
+        setApiKey(savedKey);
+        setIsApiKeySaved(true);
+      }
     } catch (error) {
       console.error("Failed to load saved data:", error);
     }
@@ -104,6 +117,15 @@ export default function App() {
         ? prev.filter(d => d !== day) 
         : [...prev, day]
     );
+  };
+
+  const saveApiKey = () => {
+    if (apiKeyInput.trim()) {
+      localStorage.setItem('gemini_api_key', apiKeyInput.trim());
+      setApiKey(apiKeyInput.trim());
+      setIsApiKeySaved(true);
+      setShowSettings(false);
+    }
   };
 
   const handleRegenerateImagePrompts = async () => {
@@ -194,14 +216,14 @@ export default function App() {
           </div>
         </div>
 
-        <div className="space-y-6 text-gray-700 leading-relaxed whitespace-pre-wrap">
+        <div className="space-y-6 text-gray-700 leading-relaxed whitespace-pre-wrap text-[19px] text-justify font-sans">
           <p className="italic text-gray-500 border-l-4 border-rose-200 pl-4">
             {currentPost.intro}
           </p>
-          <div>
+          <div className="font-sans">
             {currentPost.body}
           </div>
-          <div className="bg-rose-50/50 p-6 rounded-2xl border border-rose-100">
+          <div className="bg-rose-50/50 p-6 rounded-2xl border border-rose-100 italic">
             <p className="font-medium text-rose-800">{currentPost.conclusion}</p>
           </div>
         </div>
@@ -290,6 +312,14 @@ export default function App() {
             <Megaphone className="w-6 h-6" />
             <span className="font-medium hidden md:block">포스팅 생성기</span>
           </button>
+          
+          <button 
+            onClick={() => setShowSettings(true)}
+            className={`w-full flex items-center gap-4 p-3 rounded-2xl transition-all text-gray-400 hover:bg-gray-50 mt-4`}
+          >
+            <Settings className="w-6 h-6" />
+            <span className="font-medium hidden md:block">설정 (API 키)</span>
+          </button>
         </div>
 
         <div className="mt-auto p-2 bg-gray-50 rounded-2xl">
@@ -313,10 +343,21 @@ export default function App() {
             {activeTab === 'identity' && '블로그 브랜드 아이덴티티'}
             {activeTab === 'generator' && `${selectedDay}일차 데일리 포스팅`}
           </h2>
-          <div className="flex items-center gap-2 text-sm font-medium text-rose-600 bg-rose-50 px-4 py-2 rounded-full">
-             <RefreshCw className="w-4 h-4" />
-             <span>AI 실시간 지원 중</span>
-          </div>
+          
+          {isApiKeySaved ? (
+            <div className="flex items-center gap-2 text-sm font-medium text-rose-600 bg-rose-50 px-4 py-2 rounded-full border border-rose-100 shadow-sm shadow-rose-50 animate-pulse">
+               <RefreshCw className="w-4 h-4" />
+               <span>AI 실시간 지원 중</span>
+            </div>
+          ) : (
+            <button 
+              onClick={() => setShowSettings(true)}
+              className="flex items-center gap-2 text-sm font-medium text-white bg-rose-500 hover:bg-rose-600 px-4 py-2 rounded-full shadow-lg shadow-rose-100 transition-all hover:scale-105 active:scale-95"
+            >
+               <Key className="w-4 h-4" />
+               <span>API 키 등록하기</span>
+            </button>
+          )}
         </header>
 
         <div className="max-w-5xl mx-auto p-6 md:p-10">
@@ -562,6 +603,78 @@ export default function App() {
       <footer className="pl-20 md:pl-64 py-10 px-6 border-t border-gray-100 bg-white text-center">
         <p className="text-gray-400 text-sm">© 2026 Naver Blog Monetization Hub. Powered by AI & AI 코딩.</p>
       </footer>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettings && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setShowSettings(false)}
+                className="absolute right-6 top-6 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+                title="닫기"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500">
+                  <Key className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold">API 설정</h3>
+                  <p className="text-sm text-gray-500">Gemini API 키를 입력해 주세요.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="bg-rose-50/50 p-5 rounded-2xl border border-rose-100/50 text-[13px] text-rose-900 leading-relaxed space-y-3">
+                  <p className="font-bold border-b border-rose-100 pb-2 mb-2 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" /> 
+                    API 키 발급 및 등록 방법
+                  </p>
+                  <ol className="list-decimal list-inside space-y-2">
+                    <li><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="font-bold underline decoration-rose-300 hover:text-rose-600 transition-colors">Google AI Studio</a> 사이트에 접속합니다.</li>
+                    <li><span className="font-bold text-rose-700">"Create API key"</span> 버튼을 클릭하여 새 키를 발급받습니다.</li>
+                    <li>발급된 키를 <span className="font-bold">복사(Copy)</span>합니다.</li>
+                    <li>아래 입력창에 붙여넣고 <span className="font-bold text-rose-700">"저장하기"</span> 버튼을 누르면 모든 기능이 활성화됩니다.</li>
+                  </ol>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-600 mb-2 px-1 flex items-center gap-2">
+                    <Key className="w-4 h-4 text-rose-400" />
+                    Gemini API Key
+                  </label>
+                  <input 
+                    type="password"
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder="AI Studio에서 발급받은 키를 입력하세요"
+                    className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-4 focus:ring-rose-100 focus:border-rose-400 outline-none transition-all font-mono"
+                  />
+                  <p className="mt-3 text-xs text-gray-400 leading-relaxed px-1">
+                    * 입력하신 키는 본인의 브라우저에만 암호화되어 저장되며, 외부에 공유되지 않습니다.
+                  </p>
+                </div>
+
+                <button 
+                  onClick={saveApiKey}
+                  className="w-full py-4 bg-rose-500 text-white rounded-2xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Check className="w-5 h-5" />
+                  저장하고 시작하기
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

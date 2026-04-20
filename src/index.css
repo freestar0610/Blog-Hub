@@ -7,9 +7,6 @@
 }
 
 @layer base {
-  html {
-    font-size: 19px;
-  }
   body {
     font-family: "Nanum Gothic", sans-serif;
   }

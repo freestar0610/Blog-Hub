@@ -8,12 +8,23 @@ import { BlogIdentity, BlogPost } from "../types";
 import { SYSTEM_PROMPT_IDENTITY, SYSTEM_PROMPT_POST, SYSTEM_PROMPT_IMAGE_PROMPTS } from "../constants";
 
 let genAI: GoogleGenAI | null = null;
+let userApiKey: string | null = null;
+
+export function setApiKey(key: string) {
+  userApiKey = key;
+  genAI = new GoogleGenAI({ apiKey: key });
+}
 
 function getAI() {
+  if (userApiKey) {
+    if (!genAI) genAI = new GoogleGenAI({ apiKey: userApiKey });
+    return genAI;
+  }
+  
   if (!genAI) {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables.");
+    if (!apiKey || apiKey === "") {
+      throw new Error("Gemini API key is missing. Please set it in Settings.");
     }
     genAI = new GoogleGenAI({ apiKey });
   }
