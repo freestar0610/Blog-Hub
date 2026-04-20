@@ -1,0 +1,6 @@
+#:schema https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json
+name = "blog-monetization-hub"
+pages_build_output_dir = "dist"
+
+[vars]
+# Add environment variables here
