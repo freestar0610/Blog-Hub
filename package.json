@@ -31,5 +31,9 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "@types/express": "^4.17.21"
-  }
+  },
+  "trustedDependencies": [
+    "vite",
+    "typescript"
+  ]
 }

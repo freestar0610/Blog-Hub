@@ -1,0 +1,3 @@
+[install]
+runScripts = true
+trustedDependencies = ["vite", "typescript", "react-example"]
