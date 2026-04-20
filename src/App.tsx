@@ -36,14 +36,18 @@ export default function App() {
 
   // Load data from localStorage on mount
   useEffect(() => {
-    const savedIdentity = localStorage.getItem('blog_identity');
-    if (savedIdentity) setIdentity(JSON.parse(savedIdentity));
+    try {
+      const savedIdentity = localStorage.getItem('blog_identity');
+      if (savedIdentity) setIdentity(JSON.parse(savedIdentity));
 
-    const savedBlogPosts = localStorage.getItem('saved_posts');
-    if (savedBlogPosts) setSavedPosts(JSON.parse(savedBlogPosts));
+      const savedBlogPosts = localStorage.getItem('saved_posts');
+      if (savedBlogPosts) setSavedPosts(JSON.parse(savedBlogPosts));
 
-    const savedCompleted = localStorage.getItem('completed_days');
-    if (savedCompleted) setCompletedDays(JSON.parse(savedCompleted));
+      const savedCompleted = localStorage.getItem('completed_days');
+      if (savedCompleted) setCompletedDays(JSON.parse(savedCompleted));
+    } catch (error) {
+      console.error("Failed to load saved data:", error);
+    }
   }, []);
 
   // Save to localStorage whenever state changes
