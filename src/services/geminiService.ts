@@ -7,9 +7,21 @@ import { GoogleGenAI } from "@google/genai";
 import { BlogIdentity, BlogPost } from "../types";
 import { SYSTEM_PROMPT_IDENTITY, SYSTEM_PROMPT_POST, SYSTEM_PROMPT_IMAGE_PROMPTS } from "../constants";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let genAI: GoogleGenAI | null = null;
+
+function getAI() {
+  if (!genAI) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables.");
+    }
+    genAI = new GoogleGenAI({ apiKey });
+  }
+  return genAI;
+}
 
 export async function generateBlogIdentity(): Promise<BlogIdentity> {
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: "Please generate my blog identity.",
@@ -28,6 +40,7 @@ export async function generateBlogIdentity(): Promise<BlogIdentity> {
 }
 
 export async function generateBlogPost(day: number): Promise<BlogPost> {
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Generate post for Day ${day}.`,
@@ -48,6 +61,7 @@ export async function generateBlogPost(day: number): Promise<BlogPost> {
 }
 
 export async function regenerateImagePrompts(postContent: string): Promise<string[]> {
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Regenerate image prompts for this blog post: ${postContent}`,
