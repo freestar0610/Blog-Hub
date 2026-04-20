@@ -1,5 +1,5 @@
 #:schema https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json
-name = "blog-monetization-hub"
+name = "blog-hub"
 compatibility_date = "2026-04-20"
 pages_build_output_dir = "dist"
 
