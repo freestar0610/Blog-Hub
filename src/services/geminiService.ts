@@ -50,11 +50,15 @@ export async function generateBlogIdentity(): Promise<BlogIdentity> {
   }
 }
 
-export async function generateBlogPost(day: number): Promise<BlogPost> {
+export async function generateBlogPost(day: number, existingTitles: string[] = []): Promise<BlogPost> {
   const ai = getAI();
+  const context = existingTitles.length > 0 
+    ? `\n\nPreviously generated titles (DO NOT DUPLICATE TOPIC OR STYLE): ${existingTitles.join(', ')}`
+    : '';
+
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Generate post for Day ${day}.`,
+    contents: `Generate post for Day ${day}.${context} (MUST generated all content in KOREAN)`,
     config: {
       systemInstruction: SYSTEM_PROMPT_POST.replace("{day}", day.toString()),
       responseMimeType: "application/json",
@@ -75,7 +79,7 @@ export async function regenerateImagePrompts(postContent: string): Promise<strin
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Regenerate image prompts for this blog post: ${postContent}`,
+    contents: `Regenerate image prompts for this blog post: ${postContent} (MUST generated all prompts in KOREAN)`,
     config: {
       systemInstruction: SYSTEM_PROMPT_IMAGE_PROMPTS,
       responseMimeType: "application/json",

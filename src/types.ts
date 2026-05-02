@@ -13,6 +13,7 @@ export interface BlogPost {
   titles: string[];
   intro: string;
   body: string;
+  practice: string;
   conclusion: string;
   tags: string[];
   imagePrompts: string[];

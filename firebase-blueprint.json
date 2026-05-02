@@ -1,0 +1,47 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and settings",
+      "type": "object",
+      "properties": {
+        "identity": {
+          "type": "object",
+          "properties": {
+            "names": { "type": "array", "items": { "type": "string" } },
+            "intro": { "type": "string" },
+            "tone": { "type": "string" }
+          }
+        },
+        "completedDays": { "type": "array", "items": { "type": "integer" } },
+        "geminiApiKey": { "type": "string" }
+      }
+    },
+    "BlogPost": {
+      "title": "Blog Post",
+      "description": "A daily blog post",
+      "type": "object",
+      "properties": {
+        "titles": { "type": "array", "items": { "type": "string" } },
+        "intro": { "type": "string" },
+        "body": { "type": "string" },
+        "practice": { "type": "string" },
+        "conclusion": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "imagePrompts": { "type": "array", "items": { "type": "string" } },
+        "day": { "type": "integer" }
+      },
+      "required": ["day", "titles", "body"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Root user document"
+    },
+    "users/{userId}/posts/{day}": {
+      "schema": "BlogPost",
+      "description": "Collection of daily blog posts"
+    }
+  }
+}

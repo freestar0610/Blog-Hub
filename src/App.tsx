@@ -19,13 +19,19 @@ import {
   Coins,
   Settings,
   X,
-  Key
+  Key,
+  LogOut,
+  LogIn
 } from 'lucide-react';
 import { generateBlogIdentity, generateBlogPost, regenerateImagePrompts, setApiKey } from './services/geminiService';
 import { BlogIdentity, BlogPost } from './types';
 import { ROADMAP } from './constants';
+import { auth, db, googleProvider, handleFirestoreError } from './firebase';
+import { onAuthStateChanged, signInWithPopup, signOut, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 
 export default function App() {
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [identity, setIdentity] = useState<BlogIdentity | null>(null);
   const [currentPost, setCurrentPost] = useState<BlogPost | null>(null);
   const [savedPosts, setSavedPosts] = useState<Record<number, BlogPost>>({});
@@ -39,48 +45,89 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [isApiKeySaved, setIsApiKeySaved] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // Load data from localStorage on mount
+  // Auth & Sync
   useEffect(() => {
-    try {
-      const savedIdentity = localStorage.getItem('blog_identity');
-      if (savedIdentity) setIdentity(JSON.parse(savedIdentity));
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+      setIsAuthLoading(false);
+      
+      if (firebaseUser) {
+        // Load from Firestore
+        try {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            if (data.identity) setIdentity(data.identity);
+            if (data.completedDays) setCompletedDays(data.completedDays);
+            if (data.geminiApiKey) {
+              setApiKeyInput(data.geminiApiKey);
+              setApiKey(data.geminiApiKey);
+              setIsApiKeySaved(true);
+            }
+          }
 
-      const savedBlogPosts = localStorage.getItem('saved_posts');
-      if (savedBlogPosts) setSavedPosts(JSON.parse(savedBlogPosts));
-
-      const savedCompleted = localStorage.getItem('completed_days');
-      if (savedCompleted) setCompletedDays(JSON.parse(savedCompleted));
-
-      const savedKey = localStorage.getItem('gemini_api_key');
-      if (savedKey) {
-        setApiKeyInput(savedKey);
-        setApiKey(savedKey);
-        setIsApiKeySaved(true);
+          // Load posts
+          const postsColRef = collection(db, 'users', firebaseUser.uid, 'posts');
+          const postsSnap = await getDocs(postsColRef);
+          const posts: Record<number, BlogPost> = {};
+          postsSnap.forEach(doc => {
+            const post = doc.data() as BlogPost;
+            posts[post.day] = post;
+          });
+          setSavedPosts(posts);
+        } catch (error) {
+          console.error("Firestore sync fetch error:", error);
+        }
+      } else {
+        // Clear local state if signed out
+        setIdentity(null);
+        setSavedPosts({});
+        setCompletedDays([]);
+        setApiKeyInput('');
+        setIsApiKeySaved(false);
       }
-    } catch (error) {
-      console.error("Failed to load saved data:", error);
-    }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  // Save to localStorage whenever state changes
-  useEffect(() => {
-    if (identity) localStorage.setItem('blog_identity', JSON.stringify(identity));
-  }, [identity]);
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error("Login failed:", error);
+    }
+  };
 
-  useEffect(() => {
-    localStorage.setItem('saved_posts', JSON.stringify(savedPosts));
-  }, [savedPosts]);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
 
-  useEffect(() => {
-    localStorage.setItem('completed_days', JSON.stringify(completedDays));
-  }, [completedDays]);
+  const syncUserDoc = async (updates: any) => {
+    if (!user) return;
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      await setDoc(userDocRef, updates, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, 'update', `users/${user.uid}`);
+    }
+  };
 
   const handleGenerateIdentity = async () => {
+    if (!user) return;
     setIsLoadingIdentity(true);
     try {
       const data = await generateBlogIdentity();
       setIdentity(data);
+      await syncUserDoc({ identity: data });
       setActiveTab('identity');
     } catch (error) {
       console.error(error);
@@ -90,6 +137,7 @@ export default function App() {
   };
 
   const handleGeneratePost = async (day: number, forceRegenerate = false) => {
+    if (!user) return;
     if (!forceRegenerate && savedPosts[day]) {
       setCurrentPost(savedPosts[day]);
       setSelectedDay(day);
@@ -99,11 +147,18 @@ export default function App() {
 
     setIsLoadingPost(true);
     try {
-      const data = await generateBlogPost(day);
+      // Pass existing titles to prevent duplication
+      const existingTitles = (Object.values(savedPosts) as BlogPost[]).map(p => p.titles[0]);
+      const data = await generateBlogPost(day, existingTitles);
+      
       setSavedPosts(prev => ({ ...prev, [day]: data }));
       setCurrentPost(data);
       setSelectedDay(day);
       setActiveTab('generator');
+
+      // Save to Firestore
+      const postDocRef = doc(db, 'users', user.uid, 'posts', day.toString());
+      await setDoc(postDocRef, data);
     } catch (error) {
       console.error(error);
     } finally {
@@ -111,25 +166,29 @@ export default function App() {
     }
   };
 
-  const toggleCompleteDay = (day: number) => {
-    setCompletedDays(prev => 
-      prev.includes(day) 
-        ? prev.filter(d => d !== day) 
-        : [...prev, day]
-    );
+  const toggleCompleteDay = async (day: number) => {
+    if (!user) return;
+    const newCompleted = completedDays.includes(day) 
+      ? completedDays.filter(d => d !== day) 
+      : [...completedDays, day];
+    
+    setCompletedDays(newCompleted);
+    await syncUserDoc({ completedDays: newCompleted });
   };
 
-  const saveApiKey = () => {
+  const saveApiKey = async () => {
     if (apiKeyInput.trim()) {
-      localStorage.setItem('gemini_api_key', apiKeyInput.trim());
       setApiKey(apiKeyInput.trim());
       setIsApiKeySaved(true);
       setShowSettings(false);
+      if (user) {
+        await syncUserDoc({ geminiApiKey: apiKeyInput.trim() });
+      }
     }
   };
 
   const handleRegenerateImagePrompts = async () => {
-    if (!currentPost) return;
+    if (!currentPost || !user) return;
     setIsLoadingImagePrompts(true);
     try {
       const fullContent = `${currentPost.intro} ${currentPost.body} ${currentPost.conclusion}`;
@@ -137,6 +196,9 @@ export default function App() {
       const updatedPost = { ...currentPost, imagePrompts: newPrompts };
       setCurrentPost(updatedPost);
       setSavedPosts(prev => ({ ...prev, [currentPost.day]: updatedPost }));
+      
+      const postDocRef = doc(db, 'users', user.uid, 'posts', currentPost.day.toString());
+      await setDoc(postDocRef, updatedPost);
     } catch (error) {
       console.error(error);
     } finally {
@@ -216,13 +278,24 @@ export default function App() {
           </div>
         </div>
 
-        <div className="space-y-6 text-gray-700 leading-relaxed whitespace-pre-wrap text-[19px] text-justify font-sans">
+        <div className="space-y-6 text-gray-700 leading-relaxed whitespace-pre-wrap font-sans">
           <p className="italic text-gray-500 border-l-4 border-rose-200 pl-4">
             {currentPost.intro}
           </p>
           <div className="font-sans">
             {currentPost.body}
           </div>
+          {currentPost.practice && (
+            <div className="bg-rose-50/30 p-8 rounded-[2rem] border-2 border-dashed border-rose-100 space-y-4">
+              <div className="flex items-center gap-2 text-rose-600 font-bold">
+                <Sparkles className="w-5 h-5" />
+                <span>오늘의 실전 연습 (Practice)</span>
+              </div>
+              <div className="text-gray-700 leading-relaxed">
+                {currentPost.practice}
+              </div>
+            </div>
+          )}
           <div className="bg-rose-50/50 p-6 rounded-2xl border border-rose-100 italic">
             <p className="font-medium text-rose-800">{currentPost.conclusion}</p>
           </div>
@@ -279,6 +352,45 @@ export default function App() {
     );
   };
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FDFCFB]">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="w-10 h-10 text-rose-500 animate-spin" />
+          <p className="text-gray-500 font-medium tracking-tight">정보를 동기화 중입니다...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FDFCFB] p-6">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white p-12 rounded-[3rem] shadow-2xl shadow-rose-100 border border-gray-100 max-w-lg w-full text-center"
+        >
+          <div className="w-20 h-20 bg-rose-500 rounded-[2rem] flex items-center justify-center shadow-lg shadow-rose-200 mx-auto mb-8">
+            <Sparkles className="text-white w-10 h-10" />
+          </div>
+          <h1 className="text-4xl font-extrabold text-gray-900 mb-4 tracking-tighter">Blog Hub</h1>
+          <p className="text-gray-500 mb-10 leading-relaxed">
+            데이터를 안전하게 보관하고 90일간의 수익화 기록을<br/>
+            언제 어디서나 이어가기 위해 로그인이 필요합니다.
+          </p>
+          <button 
+            onClick={handleLogin}
+            className="w-full py-5 bg-white border-2 border-gray-100 text-gray-700 rounded-3xl font-bold flex items-center justify-center gap-4 hover:border-rose-200 hover:bg-rose-50/30 transition-all active:scale-95 shadow-sm"
+          >
+            <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="google" />
+            Google 계정으로 계속하기
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#FDFCFB] text-[#2D2926] font-sans selection:bg-rose-100">
       {/* Sidebar / Navigation */}
@@ -322,15 +434,38 @@ export default function App() {
           </button>
         </div>
 
-        <div className="mt-auto p-2 bg-gray-50 rounded-2xl">
-          <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-600">
-               <Coins className="w-4 h-4" />
-             </div>
-             <div className="hidden md:block">
-               <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Current Goal</p>
-               <p className="text-sm font-bold">수익화 달성 90일</p>
-             </div>
+        <div className="mt-auto space-y-4">
+          {user && (
+            <div className="p-4 bg-gray-50 rounded-2xl">
+              <div className="flex items-center gap-3">
+                <img 
+                  src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} 
+                  className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
+                  alt="profile"
+                />
+                <div className="flex-grow hidden md:block overflow-hidden">
+                  <p className="text-sm font-bold truncate">{user.displayName}</p>
+                  <button 
+                    onClick={handleLogout}
+                    className="text-xs text-rose-500 font-medium hover:underline flex items-center gap-1"
+                  >
+                    <LogOut className="w-3 h-3" /> 로그아웃
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="p-2 bg-gray-50 rounded-2xl">
+            <div className="flex items-center gap-3">
+               <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-600">
+                 <Coins className="w-4 h-4" />
+               </div>
+               <div className="hidden md:block">
+                 <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Current Goal</p>
+                 <p className="text-sm font-bold">수익화 달성 90일</p>
+               </div>
+            </div>
           </div>
         </div>
       </nav>

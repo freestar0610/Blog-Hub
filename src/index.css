@@ -9,6 +9,8 @@
 @layer base {
   body {
     font-family: "Nanum Gothic", sans-serif;
+    font-size: 19px;
+    text-align: justify;
   }
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
