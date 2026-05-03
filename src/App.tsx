@@ -269,7 +269,7 @@ export default function App() {
               재생성
             </button>
             <button 
-              onClick={() => copyToClipboard(`${currentPost.intro}\n\n${currentPost.body}\n\n${currentPost.conclusion}\n\n${currentPost.tags.map(t => t.startsWith('#') ? t : `#${t}`).join(' ')}`)}
+              onClick={() => copyToClipboard(`${currentPost.intro}\n\n${currentPost.body}${currentPost.practice ? `\n\n[오늘의 실전 연습]\n${currentPost.practice}` : ''}\n\n${currentPost.conclusion}\n\n${currentPost.tags.map(t => t.startsWith('#') ? t : `#${t}`).join(' ')}`)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
             >
               {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
@@ -507,7 +507,7 @@ export default function App() {
               >
                 <div className="bg-gradient-to-br from-rose-500 to-rose-600 rounded-[2rem] p-10 text-white shadow-2xl shadow-rose-200 relative overflow-hidden">
                    <div className="relative z-10">
-                     <h3 className="text-3xl font-bold mb-4">AI & AI 코딩과 함께하는<br/>누구나 가능한 수익화 자동화 프로젝트</h3>
+                     <h3 className="text-3xl font-bold mb-4">AI & AI 활용과 함께하는<br/>누구나 가능한 수익화 자동화 프로젝트</h3>
                      <p className="text-rose-100 max-w-lg leading-relaxed">
                        학생부터 직장인, 시니어까지. 복잡한 기술은 AI에게 맡기고 나만의 가치를 수익으로 바꾸는 90일간의 여정을 기록해보세요.
                      </p>
@@ -736,7 +736,7 @@ export default function App() {
       </main>
 
       <footer className="pl-20 md:pl-64 py-10 px-6 border-t border-gray-100 bg-white text-center">
-        <p className="text-gray-400 text-sm">© 2026 Naver Blog Monetization Hub. Powered by AI & AI 코딩.</p>
+        <p className="text-gray-400 text-sm">© 2026 Naver Blog Monetization Hub. Powered by AI & AI 활용.</p>
       </footer>
 
       {/* Settings Modal */}
