@@ -98,8 +98,13 @@ export default function App() {
   const handleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login failed:", error);
+      if (error.code === 'auth/unauthorized-domain') {
+        alert("Firebase 콘솔에서 이 사이트 도메인을 '승인된 도메인'으로 추가해야 합니다.\nURL: " + window.location.hostname);
+      } else {
+        alert("로그인 중 오류가 발생했습니다: " + error.message);
+      }
     }
   };
 
